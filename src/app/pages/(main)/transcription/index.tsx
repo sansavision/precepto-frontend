@@ -2,6 +2,7 @@
 'use client';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
+import { useTranscriptions } from '@/hooks/use-transcriptions';
 import Editor from '@monaco-editor/react';
 import {
   FastForward,
@@ -11,16 +12,24 @@ import {
   SkipBack,
   Volume2,
 } from 'lucide-react';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 // import { useGlobalStore } from '@/lib/store/globalstore'
 // import type { TranscriptionMeta } from './studio.types'
 
 // interface StudioProps {
 //    transcriptionMeta: TranscriptionMeta
 //   }
-export default function Transcription() {
+
+interface DraftProps {
+  transcription_id: string;
+}
+export default function Transcription({transcription_id}: DraftProps) {
+console.info('transcription_id:', transcription_id);
+  const {transcriptions} = useTranscriptions();
+  const selectedTranscription = useMemo(() =>  transcriptions?.find((transcription) => transcription.id === transcription_id), [transcriptions, transcription_id]);
+  console.info('selectedTranscription:', selectedTranscription);
   // const activeTranscription = useGlobalStore((state) => state.activeTranscription)
-  const [editorContent, setEditorContent] = useState('Enter your text here...');
+  const [editorContent, _setEditorContent] = useState(selectedTranscription?.summary || '');
   const [loading, _setIsLoading] = useState(false);
   const [audioUrl, _setAudioUrl] = useState('/placeholder.mp3');
   const [isPlaying, setIsPlaying] = useState(false);
@@ -85,9 +94,9 @@ export default function Transcription() {
     };
   }, []);
 
-  const handleEditorChange = (value: string | undefined) => {
-    setEditorContent(value || '');
-  };
+  // const handleEditorChange = (value: string | undefined) => {
+  //   setEditorContent(value || '');
+  // };
 
   const togglePlayPause = () => {
     if (audioRef.current) {
@@ -161,15 +170,16 @@ export default function Transcription() {
         className="flex flex-col h-full p-4"
       >
         {/* <h2 className="text-xl font-bold mb-2">Editable Text</h2> */}
-        <div className="flex-grow">
-          <Editor
-            height="100%"
+        <div className="flex-grow text-white">
+          {selectedTranscription?.summary}
+          {/* <Editor
+            height="80vh"
             defaultLanguage="plaintext"
             defaultValue={editorContent}
             onChange={handleEditorChange}
             theme="vs-dark"
             options={{ automaticLayout: true }}
-          />
+          /> */}
         </div>
       </div>
 

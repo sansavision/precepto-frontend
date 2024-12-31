@@ -45,13 +45,13 @@ export const useTemplates = (): UseTemplates => {
 
             const data = { access_token: accessToken };
             const response = await request('template.get_all', JSON.stringify(data), { timeout: 5000 });
-            console.info('fetchTemplates response:', response);
+            // console.info('fetchTemplates response:', response);
             const result = JSON.parse(response);
             
             if (result.status === 'success') {
                 setTemplates([]);
                 setTemplates(result.templates);
-                console.info('fetchTemplates setTemplates:', result.templates);
+                // console.info('fetchTemplates setTemplates:', result.templates);
             } else if (result.message === 'Access token expired.') {
                 // Try to refresh token
                 const refreshToken = localStorage.getItem('refresh_token');
@@ -154,7 +154,7 @@ export const useTemplates = (): UseTemplates => {
                 setTemplates((prev) =>
                     prev ? prev.map((t) => (t.id === result.template.id ? result.template : t)) : [result.template]
                 );
-                // await fetchTemplates();
+                await fetchTemplates();
             } else if (result.message === 'Access token expired.') {
                 // Try to refresh token
                 const refreshToken = localStorage.getItem('refresh_token');
@@ -197,6 +197,7 @@ export const useTemplates = (): UseTemplates => {
 
             if (result.status === 'success') {
                 setTemplates((prev) => (prev ? prev.filter((t) => t.id !== templateId) : []));
+                await fetchTemplates();
                 router({ to: "/template" });
 
             } else if (result.message === 'Access token expired.') {

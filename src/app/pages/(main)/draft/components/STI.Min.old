@@ -1,0 +1,204 @@
+import { useState, useEffect, useRef, useCallback } from 'react'
+import { Button } from '@/components/ui/button'
+import { Slider } from '@/components/ui/slider'
+import { formatTime } from '@/lib/utils/recorder-helper'
+import { Mic, Play, StopCircle, Pause, RotateCcw, RotateCw, SkipBack, SkipForward,   } from 'lucide-react'
+
+// WaveSurfer + RecordPlugin
+import WaveSurfer from 'wavesurfer.js'
+import RecordPlugin from 'wavesurfer.js/dist/plugins/record'
+import RegionsPlugin from 'wavesurfer.js/dist/plugins/regions'
+
+interface SpeechToTextInterfaceProps {
+  draftId: string
+}
+
+const SpeechToTextInterface: React.FC<SpeechToTextInterfaceProps> = ({ draftId }) => {
+  const [isRecording, setIsRecording] = useState(false)
+  const [isPlaying, setIsPlaying] = useState(false)
+  const [currentTime, setCurrentTime] = useState(0)
+  const [duration, setDuration] = useState(0)
+  const [recordingTime, setRecordingTime] = useState(0)
+
+  // Remove `hasRecordedAudio` gating for now:
+  const [waveLoaded, setWaveLoaded] = useState(false)
+
+  const waveformRef = useRef<HTMLDivElement>(null)
+  const wavesurfer = useRef<WaveSurfer | null>(null)
+  const record = useRef<RecordPlugin | null>(null)
+
+  // 1) Setup wavesurfer + record plugin
+  useEffect(() => {
+    if (!waveformRef.current) return
+
+    console.info('Initializing WaveSurfer...')
+
+    wavesurfer.current = WaveSurfer.create({
+      container: waveformRef.current,
+      waveColor: 'purple',
+      progressColor: 'violet',
+      cursorColor: 'navy',
+      barWidth: 2,
+      barRadius: 3,
+      height: 100,
+    })
+
+    // Register Record plugin
+    record.current = wavesurfer.current.registerPlugin(
+      RecordPlugin.create({
+        mimeType: 'audio/webm',
+      })
+    )
+
+    // (Optional) Register Regions if you want
+    wavesurfer.current.registerPlugin(RegionsPlugin.create())
+
+    wavesurfer.current.on('ready', () => {
+      console.info('WaveSurfer on("ready") - Duration =', wavesurfer.current?.getDuration())
+      setDuration(wavesurfer.current?.getDuration() ?? 0)
+      setWaveLoaded(true)
+    })
+
+    wavesurfer.current.on('audioprocess', () => {
+      const time = wavesurfer.current?.getCurrentTime() ?? 0
+      setCurrentTime(time)
+    })
+
+    wavesurfer.current.on('play', () => setIsPlaying(true))
+    wavesurfer.current.on('pause', () => setIsPlaying(false))
+
+    // Record plugin events
+    record.current.on('record-start', () => {
+      console.info('RecordPlugin: "record-start" event fired.')
+    })
+
+    // Fires about every 100ms while recording
+    record.current.on('record-progress', (sec: number) => {
+      setRecordingTime(sec)
+    })
+
+    // This is where we get the final Blob after stopping
+    // @ts-expect-error "finish" event missing from type defs
+    // biome-ignore lint/suspicious/noExplicitAny: <explanation>
+            record.current.on('finish', async (data: any) => {
+      console.info('RecordPlugin: "finish" event data ->', data)
+
+      const recordedBlob = data?.blob ?? data
+      if (recordedBlob instanceof Blob) {
+        console.info('Got a valid recordedBlob:', recordedBlob)
+        try {
+          // Reload wave from recorded blob
+          await wavesurfer.current?.loadBlob(recordedBlob)
+        } catch (err) {
+          console.error('Error loading recordedBlob into WaveSurfer:', err)
+        }
+      } else {
+        console.warn('No valid blob in finish event data.')
+      }
+    })
+
+    return () => {
+      wavesurfer.current?.destroy()
+    }
+  }, [])
+
+  // 2) Start/Stop recording
+  const handleRecordToggle = useCallback(async () => {
+    if (!record.current) return
+
+    if (!isRecording) {
+      console.info('Starting recording...')
+      try {
+        await record.current.startRecording()
+        setIsRecording(true)
+        setRecordingTime(0)
+      } catch (err) {
+        console.error('Could not start recording:', err)
+      }
+    } else {
+      console.info('Stopping recording...')
+      try {
+        record.current.stopRecording()
+      } catch (err) {
+        console.error('Error stopping recording:', err)
+      }
+      setIsRecording(false)
+    }
+  }, [isRecording])
+
+  // 3) Play/Pause wave
+  const handlePlayPause = useCallback(() => {
+    wavesurfer.current?.playPause()
+  }, [])
+
+  // 4) Skip
+  const handleSkip = useCallback((seconds: number) => {
+    if (!wavesurfer.current) return
+    const dur = wavesurfer.current.getDuration()
+    const cur = wavesurfer.current.getCurrentTime()
+    const newTime = Math.max(0, Math.min(cur + seconds, dur))
+    wavesurfer.current.seekTo(newTime / dur)
+    setCurrentTime(newTime)
+  }, [])
+
+  return (
+    <div className="p-4 max-w-xl mx-auto">
+      {/* Waveform */}
+      <div ref={waveformRef} className="w-full h-32 mb-2 bg-slate-100" />
+
+      {/* Time display */}
+      <div className="flex items-center justify-between mb-2">
+        <span>
+          {isRecording ? formatTime(recordingTime) : formatTime(currentTime)}
+        </span>
+        <Slider
+          value={[ (isRecording ? 0 : (currentTime / Math.max(duration, 1))) * 100 ]}
+          onValueChange={(val) => {
+            if (!isRecording && wavesurfer.current) {
+              const n = (val[0] / 100) * duration
+              wavesurfer.current.seekTo(n / duration)
+              setCurrentTime(n)
+            }
+          }}
+          max={100} step={0.1}
+          className="flex-1 mx-4"
+        />
+        <span>{formatTime(duration)}</span>
+      </div>
+
+      {/* Controls */}
+      <div className="flex items-center gap-2 justify-center">
+        <Button onClick={() => handleSkip(-5)} disabled={isRecording}>
+          <RotateCcw className="w-4 h-4" />
+        </Button>
+        <Button onClick={() => handleSkip(-2)} disabled={isRecording}>
+          <SkipBack className="w-4 h-4" />
+        </Button>
+
+        {/* Show Play/Pause if wave is loaded (no gating on "hasRecordedAudio") */}
+        {waveLoaded && !isRecording && (
+          <Button onClick={handlePlayPause}>
+            {isPlaying ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
+          </Button>
+        )}
+
+        {/* Single record toggle */}
+        <Button
+          onClick={handleRecordToggle}
+          variant={isRecording ? 'destructive' : 'default'}
+        >
+          {isRecording ? <StopCircle className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
+        </Button>
+
+        <Button onClick={() => handleSkip(2)} disabled={isRecording}>
+          <SkipForward className="w-4 h-4" />
+        </Button>
+        <Button onClick={() => handleSkip(5)} disabled={isRecording}>
+          <RotateCw className="w-4 h-4" />
+        </Button>
+      </div>
+    </div>
+  )
+}
+
+export default SpeechToTextInterface

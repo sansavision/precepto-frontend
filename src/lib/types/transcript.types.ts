@@ -1,6 +1,7 @@
 export interface TranscriptTemplate {
   id: string;
   name: string;
+  description?: string;
   template: string;
   created_by_id: string;
   created_at: string;
@@ -25,6 +26,7 @@ export interface TranscriptionMeta {
     | 'completed'
     | 'failed';
   template_id?: string;
+  template?: TranscriptTemplate;
   audio_url?: string;
   transcript?: string;
   final_transcript?: string;
@@ -46,22 +48,14 @@ export interface TranscriptionMeta {
   notes?: string;
 }
 
+export type TranscriptionStatusType = 'signed' | 'not_signed' | 'queued' | 'failed' | 'processing' | 'draft';
+export type TranscriptionBackendStatusType = 'recording_service' | 'transcription_service' | 'summarization_service' | 'completed' | 'failed';
+
 export interface TranscriptionMetaOld {
   id: string;
   name: string;
-  status:
-    | 'complete'
-    | 'incomplete'
-    | 'queued'
-    | 'failed'
-    | 'processing'
-    | 'draft';
-  backend_status?:
-    | 'recording_service'
-    | 'transcription_service'
-    | 'summarization_service'
-    | 'completed'
-    | 'failed';
+  status: TranscriptionStatusType
+  backend_status?: TranscriptionBackendStatusType;
   template_id?: string;
   audio_url?: string;
   transcript?: string;

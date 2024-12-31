@@ -26,6 +26,10 @@ export const generateBreadcrumbs = (
     if (activeTranscription && segment === activeTranscription.id) {
       title = activeTranscription.name;
     }
+    // console.info(' -- - title ---', title);
+    if(!title) {
+      title = 'Untitled';
+    }
     title = title.charAt(0).toUpperCase() + title.slice(1);
     return {
       title,

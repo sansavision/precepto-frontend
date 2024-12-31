@@ -71,7 +71,7 @@ export default {
       keyframes: {
         'pulsate': {
           '0%, 100%': { backgroundColor: 'black' },
-          '50%': { backgroundColor: 'red' },
+          '10%': { backgroundColor: 'rgba(255,20,20,0.3)' },
         },
         'accordion-down': {
           from: {

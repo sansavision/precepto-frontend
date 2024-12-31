@@ -1,0 +1,221 @@
+// src/components/RecordAudio.tsx
+
+import { headers } from 'nats.ws';
+import { Button } from '@/components/ui/button';
+import { useTranscriptions } from '@/hooks/use-transcriptions';
+import { useNats } from '@/lib/providers/nats-provider';
+// import { useGlobalStore } from '@/lib/store/globalstore';
+import type { TranscriptionMeta } from '@/lib/types/transcript.types';
+import { useEffect, useRef, useState } from 'react';
+
+interface DraftProps {
+  draft_id: string;
+}
+const Draft = ({ draft_id }: DraftProps) => {
+  const { transcriptions } = useTranscriptions();
+  const [isRecording, setIsRecording] = useState(false);
+  const [isPaused, setIsPaused] = useState(false);
+  const [isCompleted, setIsCompleted] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [transcriptionMeta, setTranscriptionMeta] =
+    useState<TranscriptionMeta | null>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
+  const uploadIntervalRef = useRef<NodeJS.Timeout | null>(null);
+
+  const { natsConnection, isConnected, publish } = useNats();
+
+  useEffect(() => {
+    const t = transcriptions?.find((t) => t.id === draft_id);
+    if (t) {
+      setTranscriptionMeta(t);
+    }
+  }, [transcriptions, draft_id]);
+
+  useEffect(() => {
+    if (!isConnected) {
+      console.warn('NATS is not connected.');
+    }
+  }, [isConnected]);
+
+  const startRecording = async () => {
+    if (!(isConnected || natsConnection)) {
+      setError(
+        'Unable to start recording: NATS connection is not established.',
+      );
+      return;
+    }
+
+    try {
+      setError(null);
+      if (!transcriptionMeta) {
+        throw new Error('No active transcription');
+      }
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      mediaRecorderRef.current = new MediaRecorder(stream);
+
+      mediaRecorderRef.current.ondataavailable = handleDataAvailable;
+      mediaRecorderRef.current.onstop = handleStop;
+
+      mediaRecorderRef.current.start(1000); // Collect data every second
+      setIsRecording(true);
+      setIsPaused(false);
+      setIsCompleted(false);
+
+      // Create headers
+      const hdrs = headers();
+      hdrs.append('KV-Key', transcriptionMeta.id);
+
+      // Store TranscriptionMeta in KV store via NATS
+      publish('kv.transcriptions.put', JSON.stringify(transcriptionMeta), { headers: hdrs });
+
+      // publish('kv.transcriptions.put', JSON.stringify(transcriptionMeta), {
+      //   headers: { 'KV-Key': transcriptionMeta.id },
+      // });
+
+      // Start uploading chunks every 5 seconds
+      uploadIntervalRef.current = setInterval(uploadChunks, 5000);
+    } catch (err) {
+      console.error('Error accessing microphone', err);
+      setError('Microphone access denied or unavailable.');
+    }
+  };
+
+  const handleDataAvailable = (event: BlobEvent) => {
+    if (event.data.size > 0) {
+      audioChunksRef.current.push(event.data);
+    }
+  };
+
+  const pauseRecording = () => {
+    if (mediaRecorderRef.current && isRecording) {
+      mediaRecorderRef.current.pause();
+      setIsPaused(true);
+      if (uploadIntervalRef.current) {
+        clearInterval(uploadIntervalRef.current);
+        uploadIntervalRef.current = null;
+      }
+    }
+  };
+
+  const resumeRecording = () => {
+    if (mediaRecorderRef.current && isPaused) {
+      mediaRecorderRef.current.resume();
+      setIsPaused(false);
+      uploadIntervalRef.current = setInterval(uploadChunks, 5000);
+    }
+  };
+
+  const stopRecording = () => {
+    if (mediaRecorderRef.current) {
+      mediaRecorderRef.current.stop();
+      setIsRecording(false);
+      setIsPaused(false);
+      if (uploadIntervalRef.current) {
+        clearInterval(uploadIntervalRef.current);
+        uploadIntervalRef.current = null;
+      }
+    }
+  };
+
+  const handleStop = () => {
+    uploadChunks(); // Upload any remaining chunks
+  };
+
+  const uploadChunks = async () => {
+    if (!natsConnection || !transcriptionMeta?.id) {
+      return;
+    }
+    if (audioChunksRef.current.length === 0) {
+      return;
+    }
+
+    const blob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+    const arrayBuffer = await blob.arrayBuffer();
+
+    try {
+      // Create headers
+      const hdrs = headers();
+      hdrs.append('Recording-ID', transcriptionMeta.id);
+
+      publish('audio.chunks', new Uint8Array(arrayBuffer), {
+        headers: hdrs,
+      });
+      // publish('audio.chunks', new Uint8Array(arrayBuffer), {
+      //   headers: {
+      //     'Recording-ID': transcriptionMeta?.id,
+      //   },
+      // });
+      // Clear chunks after successful upload
+      audioChunksRef.current = [];
+    } catch (err) {
+      console.error('Upload failed', err);
+      setError('Failed to upload audio. Please check your network connection.');
+    }
+  };
+
+  const markAsComplete = () => {
+    setIsCompleted(true);
+    stopRecording();
+
+    if (transcriptionMeta?.id) {
+      const updatedMeta: TranscriptionMeta = {
+        ...transcriptionMeta,
+        status: 'queued',
+        updated_at: new Date().toISOString(),
+        backend_status: 'recording_service',
+      };
+      setTranscriptionMeta(updatedMeta);
+
+      // Create headers
+      const hdrs = headers();
+      hdrs.append('KV-Key', transcriptionMeta.id);
+
+      // Update TranscriptionMeta in KV store
+      publish('kv.transcriptions.put', JSON.stringify(updatedMeta), {
+        headers: hdrs,
+      });
+
+      // Notify backend that recording is complete
+      publish('recording.completed', JSON.stringify(updatedMeta));
+      // // Update TranscriptionMeta in KV store
+      // publish('kv.transcriptions.put', JSON.stringify(updatedMeta), {
+      //   headers: { 'KV-Key': transcriptionMeta?.id },
+      // });
+
+      // // Notify backend that recording is complete
+      // publish('recording.completed', JSON.stringify(updatedMeta));
+    }
+  };
+
+  const markAsIncomplete = () => {
+    setIsCompleted(false);
+    startRecording();
+  };
+
+  return (
+    <div>
+      <h2>Record Audio</h2>
+      {!isConnected && (
+        <p style={{ color: 'red' }}>Disconnected from server.</p>
+      )}
+      {error && <p style={{ color: 'red' }}>{error}</p>}
+      {!isRecording && !isCompleted && (
+        <Button onClick={startRecording}>Start Recording</Button>
+      )}
+      {isRecording && !isPaused && (
+        <Button onClick={pauseRecording}>Pause Recording</Button>
+      )}
+      {isPaused && <Button onClick={resumeRecording}>Resume Recording</Button>}
+      {isRecording && <Button onClick={stopRecording}>Stop Recording</Button>}
+      {!isRecording && !isCompleted && audioChunksRef.current.length > 0 && (
+        <Button onClick={markAsComplete}>Complete Recording</Button>
+      )}
+      {isCompleted && (
+        <Button onClick={markAsIncomplete}>Mark as Incomplete</Button>
+      )}
+    </div>
+  );
+};
+
+export default Draft;

@@ -4,27 +4,35 @@ import { Button } from '@/components/ui/button'
 // import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import TemplateSection, { type TemplateSectionData } from './TemplateSection'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Tabs, TabsContent } from "@/components/ui/tabs"
 import { ScrollArea } from "@/components/ui/scroll-area"
 // import { useToast } from "@/components/ui/use-toast"
 // import { marked } from 'marked'
 import { useToast } from '@/hooks/use-toast'
+import { Modal } from '../ui/modal'
+import { CreateTemplateForm } from '@/app/pages/(main)/template/components/create.template'
 
 interface TemplateBuilderProps {
     content: string
+    name: string
+    description?: string
+    template_id: string
     onUpdate: (content: string) => void
     onDelete: () => void
 }
 
-const TemplateBuilder: React.FC<TemplateBuilderProps> = ({ content, onUpdate,onDelete }) => {
+const TemplateBuilder: React.FC<TemplateBuilderProps> = ({ name, description,content, onUpdate, onDelete, template_id }) => {
     const [sections, setSections] = useState<TemplateSectionData[]>([])
-    const [_mode, setMode] = useState<'edit' | 'view'>('edit')
+    const [mode, setMode] = useState<'edit' | 'view'>('edit')
     const [jsonInput, setJsonInput] = useState('')
+    const [isEditNameModalOpen, setIsEditNameModalOpen] = useState(false)
+    // const [isCopyTemplateModalOpen, setIsCopyTemplateModalOpen] = useState(false)
     const { toast } = useToast()
 
     useEffect(() => {
         // const savedTemplate = localStorage.getItem('medicalRecordTemplate')
         const savedTemplate = content
+        console.info("savedTemplate", savedTemplate)
         if (savedTemplate) {
             loadTemplate(savedTemplate)
             //   try {
@@ -33,13 +41,13 @@ const TemplateBuilder: React.FC<TemplateBuilderProps> = ({ content, onUpdate,onD
             //   } catch (error) {
             //     console.error('Failed to parse saved template:', error)
             //   }
-        }else{
+        } else {
             setSections([])
         }
     }, [content])
 
     const addSection = () => {
-        setSections([...sections, {
+        setSections([...sections.map(i => { return { ...i, isCollapsed: true } }), {
             title: `Section ${sections.length + 1}`,
             isMandatory: false,
             content: '',
@@ -73,22 +81,22 @@ const TemplateBuilder: React.FC<TemplateBuilderProps> = ({ content, onUpdate,onD
             // biome-ignore lint/suspicious/noArrayIndexKey: <explanation>
             <div key={index} className="mb-6">
                 <h2 className="text-xl font-bold mb-2">
-                    {section.title}: {section.isMandatory ? 'mandatory' : 'optional'}
+                    {section.title}: {section.isMandatory ? 'obligatorisk felt' : 'valgfritt felt'}
                 </h2>
                 {section.content && <p className="mb-2">{section.content}</p>}
                 {section.inclusions.length > 0 && (
                     <div className="mb-2">
-                        <strong>Inclusions:</strong> {section.inclusions.join(', ')}
+                        <strong>Inkluderinger:</strong> {section.inclusions.join(', ')}
                     </div>
                 )}
                 {section.exclusions.length > 0 && (
                     <div className="mb-2">
-                        <strong>Exclusions:</strong> {section.exclusions.join(', ')}
+                        <strong>Ekskluderinger:</strong> {section.exclusions.join(', ')}
                     </div>
                 )}
                 {section.examples.length > 0 && (
                     <div className="mb-2">
-                        <strong>Examples:</strong> {section.examples.join(', ')}
+                        <strong>Eksempler:</strong> {section.examples.join(', ')}
                     </div>
                 )}
                 <hr className="my-4" />
@@ -99,13 +107,12 @@ const TemplateBuilder: React.FC<TemplateBuilderProps> = ({ content, onUpdate,onD
 
     const saveTemplate = () => {
         const templateString = JSON.stringify(sections)
-        console.info("will store template", templateString)
         onUpdate(templateString)
         // localStorage.setItem('medicalRecordTemplate', templateString)
-        toast({
-            title: "Template Saved",
-            description: "Your template has been saved successfully.",
-        })
+        // toast({
+        //     title: "Malen er lagret",
+        //     description: "Malen din er lagret.",
+        // })
         return templateString
     }
 
@@ -146,18 +153,48 @@ const TemplateBuilder: React.FC<TemplateBuilderProps> = ({ content, onUpdate,onD
     }
 
     return (
-        <div className="container mx-auto p-4 h-fit flex flex-col">
+        <div className="container mx-auto h-fit flex flex-col">
+            <Modal
+                isOpen={isEditNameModalOpen}
+                onClose={() => setIsEditNameModalOpen(false)}
+                title='Rediger malnavn'
+                description='Rediger navnet og beskrivelsen av malen'
+            >
+                <CreateTemplateForm 
+                    name={name}
+                    content={JSON.stringify(sections)}
+                    description={description}
+                    template_id={template_id}
+                    isUpdate={true}
+                    cb={() => setIsEditNameModalOpen(false)}
+                />
+            </Modal>
+            {/* <Modal
+                isOpen={isCopyTemplateModalOpen}
+                onClose={() => setIsCopyTemplateModalOpen(false)}
+                title='Copy Template'
+                description='Copy the template to your clipboard'
+            >
+
+            </Modal> */}
             {/* <h1 className="text-2xl font-bold mb-4">Medical Record Template Builder</h1> */}
-            <Tabs defaultValue="edit" className="flex-grow flex flex-col max-h-fit">
-                <TabsList className='bg-transparent'>
+            <Tabs defaultValue="edit" value={mode} className="flex-grow flex flex-col max-h-fit">
+                {/* <TabsList className='bg-transparent'>
                     <TabsTrigger value="edit" onClick={() => setMode('edit')}>Edit</TabsTrigger>
                     <TabsTrigger value="view" onClick={() => setMode('view')}>View</TabsTrigger>
-                    {/* <TabsTrigger value="json" onClick={() => setMode('json')}>JSON</TabsTrigger> */}
-                </TabsList>
-                <TabsContent value="edit" className="flex-grow flex overflow-hidden">
-                    <div className="flex-grow flex flex-col overflow-hidden border rounded-md mr-4 h-[80vh]">
-                        <div className="p-4 border-b">
-                            <h2 className="text-xl font-semibold">Sections</h2>
+                    <TabsTrigger value="json" onClick={() => setMode('json')}>JSON</TabsTrigger>
+                </TabsList> */}
+                <TabsContent value="edit" className="flex-grow flex overflow-hidden gap-x-8">
+                    <div className="flex-grow flex flex-col overflow-hidden border rounded-md h-[80vh]">
+                        <div className="p-4 border-b flex justify-between">
+                            <h2 className="text-xl font-semibold">Seksjoner</h2>
+            
+                                <div className='flex gap-x-4 justify-end'>
+                                    <Button variant="outline" onClick={()=>{setIsEditNameModalOpen(true)}}>Rediger navn</Button>
+                                    {/* <Button variant="outline">Lag nytt fra mal</Button> */}
+ 
+                                </div>
+          
                         </div>
                         <ScrollArea className="flex-grow p-4">
                             {sections.map((section, index) => (
@@ -173,13 +210,13 @@ const TemplateBuilder: React.FC<TemplateBuilderProps> = ({ content, onUpdate,onD
                         </ScrollArea>
                         <div className="p-4 border-t">
                             <Button onClick={addSection} className="w-full">
-                                Add Section
+                                Legg til seksjon
                             </Button>
                         </div>
                     </div>
                     <div className="w-1/2 flex flex-col overflow-hidden border rounded-md h-[80vh]">
                         <div className="p-4 border-b">
-                            <h2 className="text-xl font-semibold">Generated Template</h2>
+                            <h2 className="text-xl font-semibold">Generert mal</h2>
                         </div>
                         <ScrollArea className="flex-grow p-4">
                             <pre className="whitespace-pre-wrap">{generateTemplate()}</pre>
@@ -192,7 +229,7 @@ const TemplateBuilder: React.FC<TemplateBuilderProps> = ({ content, onUpdate,onD
           </ScrollArea>
         </TabsContent> */}
                 <TabsContent value="view" className="flex-grow overflow-hidden border rounded-md h-[80vh]">
-                    <ScrollArea className="h-full p-4">
+                    <ScrollArea className="h-full">
                         {generateTemplate()}
                     </ScrollArea>
                 </TabsContent>
@@ -222,19 +259,35 @@ const TemplateBuilder: React.FC<TemplateBuilderProps> = ({ content, onUpdate,onD
                 </TabsContent>
             </Tabs>
             <div className="mt-4 flex justify-between space-x-2">
-                <Button 
-                variant={"ghost"}
-                className='hover:bg-destructive'
-                onClick={() => {
-                    onDelete()
-                    // navigator.clipboard.writeText(jsonString)
-                    // toast({
-                    //     title: "Template Copied",
-                    //     description: "The template JSON has been copied to your clipboard.",
-                    // })
-                }}>
-                    Delete Template
+                <Button
+                    variant={"ghost"}
+                    className='hover:bg-destructive'
+                    onClick={() => {
+                        onDelete()
+                        // navigator.clipboard.writeText(jsonString)
+                        // toast({
+                        //     title: "Template Copied",
+                        //     description: "The template JSON has been copied to your clipboard.",
+                        // })
+                    }}>
+                    Slett mal
                 </Button>
+                <div className='flex gap-x-4 items-center justify-center'>
+                    <Button
+                        variant={"ghost"}
+                        onClick={() => {
+                            setMode('edit')
+                        }}>
+                        Redigere
+                    </Button>
+                    <Button
+                        variant={"ghost"}
+                        onClick={() => {
+                            setMode('view')
+                        }}>
+                        Inspiser
+                    </Button>
+                </div>
                 <Button onClick={() => {
                     saveTemplate()
                     // navigator.clipboard.writeText(jsonString)
@@ -243,7 +296,7 @@ const TemplateBuilder: React.FC<TemplateBuilderProps> = ({ content, onUpdate,onD
                     //     description: "The template JSON has been copied to your clipboard.",
                     // })
                 }}>
-                    Save Template
+                    Lagre mal
                 </Button>
             </div>
         </div>

@@ -11,9 +11,10 @@ import { useNats } from './nats-provider';
 
 export interface AuthContextType {
   user: User | null;
-  login: (username: string, password: string, cb?:()=>void) => Promise<boolean>;
+  login: (username: string, password: string, cb?: () => void) => Promise<boolean>;
   logout: () => void;
   isAuthenticated: boolean;
+  isInitialized: boolean;
   refreshAccessToken: (refreshToken: string) => Promise<void>;
   contextInitialized: boolean;
   redirectOnAuth: (path: string, cb: () => void) => void
@@ -24,6 +25,7 @@ const AuthContext = createContext<AuthContextType>({
   login: async () => false,
   logout: () => { },
   isAuthenticated: false,
+  isInitialized: false,
   refreshAccessToken: async () => { },
   contextInitialized: false,
   redirectOnAuth: () => { }
@@ -35,7 +37,10 @@ interface AuthProviderProps {
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const { isConnected, request } = useNats();
+  const [isInitialized, setIsInitialized] = useState(false);
+  const { isConnected, request, natsConnection } = useNats();
+ 
+
 
   const redirectOnAuth = useCallback((path: string, cb: () => void) => {
     // check if path variable is auth and if so we should redirect to dashboard
@@ -45,39 +50,71 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   }, [isAuthenticated])
 
   useEffect(() => {
-    console.info('Auth provider initialized');
-    // Load tokens from localStorage
-    const accessToken = localStorage.getItem('access_token');
-    const refreshToken = localStorage.getItem('refresh_token');
-    console.info('Access token:', accessToken);
-    console.info('Refresh token:', refreshToken);
-    if (accessToken && refreshToken) {
-      // Validate access token
-      // biome-ignore lint/suspicious/noExplicitAny: <explanation>
-      const decodedToken: any = jwtDecode(accessToken);
-      console.info('Decoded token', decodedToken);
-      if (decodedToken.exp * 1000 > Date.now()) {
-        console.info('Token is valid');
-        // Token is valid
-        setUser(decodedToken.user);
-        setIsAuthenticated(true);
-      } else {
-        console.info('Token expired');
-        // Access token expired, try to refresh
-        refreshAccessToken(refreshToken);
+    const initializeAuth = async () => {
+      // Wait until NATS is connected
+      if (!isConnected) {
+        // Optionally, you can add a listener or a timeout
+        console.info('Waiting for NATS connection...');
+        // Example: Wait for connection with a timeout
+        const waitForConnection = () => {
+          return new Promise<void>((resolve) => {
+            const checkConnection = () => {
+              if (isConnected) {
+                resolve();
+              } else {
+                setTimeout(checkConnection, 100);
+              }
+            };
+            checkConnection();
+          });
+        };
+        await waitForConnection();
       }
-    }
-  }, []);
+
+      // Load tokens from localStorage
+      const accessToken = localStorage.getItem('access_token');
+      const refreshToken = localStorage.getItem('refresh_token');
+ 
+      if (accessToken && refreshToken) {
+        // Validate access token
+        // biome-ignore lint/suspicious/noExplicitAny: <explanation>
+        const decodedToken: any = jwtDecode(accessToken);
+ 
+        if (decodedToken.exp * 1000 > Date.now()) {
+          console.info('Token is valid');
+          // Token is valid
+          setUser(decodedToken.user);
+          setIsAuthenticated(true);
+          setIsInitialized(true);
+        } else {
+          console.info('Token expired');
+          // Access token expired, try to refresh
+          await refreshAccessToken(refreshToken);
+        }
+      }
+    };
+
+    initializeAuth();
+  }, [isConnected]);
 
   const refreshAccessToken = async (refreshToken: string) => {
+ 
+    if (natsConnection?.isClosed()) {
+ 
+      await natsConnection?.reconnect();
+    }
+ 
     try {
-      console.info('Refreshing access token');
+ 
       const data = { refresh_token: refreshToken };
+ 
       const response = await request(
         'auth.refresh_token',
         JSON.stringify(data),
       );
+ 
       const result = JSON.parse(response);
+ 
       if (result.status === 'success') {
         const { access_token } = result;
         localStorage.setItem('access_token', access_token);
@@ -93,6 +130,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       console.error('Token refresh error:', error);
       logout();
     }
+    finally {
+      setIsInitialized(true);
+    } 
   };
 
   const login = async (
@@ -121,9 +161,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         console.info('Decoded token', decodedToken);
         setUser(decodedToken.user);
         setIsAuthenticated(true);
-        setTimeout(() => { 
+        setTimeout(() => {
           cb?.()
-         },0)
+        }, 0)
         return true;
       }
 
@@ -143,13 +183,17 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     localStorage.removeItem('refresh_token');
   };
 
+
+
   return (
     <AuthContext.Provider
-      value={{ user, login, logout, isAuthenticated, refreshAccessToken, contextInitialized: true, 
+      value={{
+        user, login, logout, isAuthenticated, refreshAccessToken, contextInitialized: true, isInitialized,
         redirectOnAuth
       }}
     >
-      {children}
+      {!isInitialized ? <div className='bg-black'>loading</div> : children}
+      {/* {children} */}
     </AuthContext.Provider>
   );
 };
