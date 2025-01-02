@@ -75,7 +75,7 @@ const SpeechToTextInterface: React.FC<SpeechToTextInterfaceProps> = ({ draftId }
 
         // biome-ignore lint/correctness/useExhaustiveDependencies: <explanation>
               useEffect(() => {
-    if (!waveformRef.current) return
+    if (!waveformRef.current) {return}
 
     wavesurfer.current = WaveSurfer.create({
       container: waveformRef.current,
@@ -178,14 +178,14 @@ const SpeechToTextInterface: React.FC<SpeechToTextInterfaceProps> = ({ draftId }
   // 2) Combine all chunks for single wave
   // ======================================
   const combinedBlob = useMemo(() => {
-    if (chunks.length === 0) return null
+    if (chunks.length === 0){ return null}
     return new Blob(chunks.map(c => c.data), { type: 'audio/webm' })
   }, [chunks])
 
   // Whenever combinedBlob changes, load it
   useEffect(() => {
-    if (!wavesurfer.current) return
-    if (!combinedBlob) return
+    if (!wavesurfer.current) {return}
+    if (!combinedBlob) {return}
 
     console.info('Loading combined blob of all chunks into WaveSurfer...')
     wavesurfer.current.loadBlob(combinedBlob)
@@ -210,7 +210,7 @@ const SpeechToTextInterface: React.FC<SpeechToTextInterfaceProps> = ({ draftId }
   // Recording Toggle
   // ================
   const handleRecordToggle = useCallback(async () => {
-    if (!recordPlugin.current) return
+    if (!recordPlugin.current) {return}
 
     if (!isRecording) {
       // Start recording
@@ -246,7 +246,7 @@ const SpeechToTextInterface: React.FC<SpeechToTextInterfaceProps> = ({ draftId }
   // Skips
   // ================
   const handleSkip = useCallback((seconds: number) => {
-    if (!wavesurfer.current) return
+    if (!wavesurfer.current) {return}
     const dur = wavesurfer.current.getDuration()
     const cur = wavesurfer.current.getCurrentTime()
     const newTime = Math.max(0, Math.min(cur + seconds, dur))
@@ -258,7 +258,7 @@ const SpeechToTextInterface: React.FC<SpeechToTextInterfaceProps> = ({ draftId }
   // Insert / Replace / Delete
   // ================
   const handleInsert = useCallback(async () => {
-    if (!selectedRegion || !recordPlugin.current) return
+    if (!selectedRegion || !recordPlugin.current) {return}
     try {
       await recordPlugin.current.startRecording()
       const snippetBlob = (await recordPlugin.current.stopRecording()) as Blob | undefined
@@ -277,7 +277,7 @@ const SpeechToTextInterface: React.FC<SpeechToTextInterfaceProps> = ({ draftId }
   }, [applyEdit, selectedRegion])
 
   const handleReplace = useCallback(async () => {
-    if (!selectedRegion || !recordPlugin.current) return
+    if (!selectedRegion || !recordPlugin.current) {return}
     try {
       await recordPlugin.current.startRecording()
       const snippetBlob = (await recordPlugin.current.stopRecording()) as Blob | undefined
@@ -295,7 +295,7 @@ const SpeechToTextInterface: React.FC<SpeechToTextInterfaceProps> = ({ draftId }
   }, [applyEdit, selectedRegion])
 
   const handleDelete = useCallback(() => {
-    if (!selectedRegion) return
+    if (!selectedRegion) {return}
     applyEdit({
       type: 'delete',
       startTime: selectedRegion.start,
@@ -315,7 +315,7 @@ const SpeechToTextInterface: React.FC<SpeechToTextInterfaceProps> = ({ draftId }
   // Name update & Template
   // ================
   const handleNameUpdate = useCallback(() => {
-    if (!selectedTranscription) return
+    if (!selectedTranscription) {return}
     const update: TranscriptionMeta = {
       id: draftId,
       name,
@@ -328,7 +328,7 @@ const SpeechToTextInterface: React.FC<SpeechToTextInterfaceProps> = ({ draftId }
   }, [draftId, name, selectedTranscription, updateTranscription])
 
   const handleTemplateChange = useCallback((templateId: string) => {
-    if (!selectedTranscription) return
+    if (!selectedTranscription) {return}
     const update: TranscriptionMeta = {
       id: draftId,
       name,
@@ -344,7 +344,7 @@ const SpeechToTextInterface: React.FC<SpeechToTextInterfaceProps> = ({ draftId }
   // ================
   const handleMarkComplete = useCallback(async () => {
     recordPlugin.current?.stopRecording()
-    if (!selectedTranscription) return
+    if (!selectedTranscription) {return}
     const update: TranscriptionMeta = {
       id: draftId,
       name,
@@ -429,7 +429,7 @@ const SpeechToTextInterface: React.FC<SpeechToTextInterfaceProps> = ({ draftId }
               : (currentTime / Math.max(duration, 1)) * 100
           ]}
           onValueChange={(value) => {
-            if (isRecording || !wavesurfer.current) return
+            if (isRecording || !wavesurfer.current) {return}
             const newTime = (value[0] / 100) * duration
             wavesurfer.current.seekTo(newTime / duration)
             setCurrentTime(newTime)

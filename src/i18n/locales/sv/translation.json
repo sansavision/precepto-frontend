@@ -1,0 +1,12 @@
+{
+  "title": "Vite React Tailwind Starter",
+  "features": "Funktioner",
+  "modernstack": "Modern och effektiv stack",
+  "modernstack-desc": "Byggd med Vite, React, Tailwind CSS, Shadcnui och mer",
+  "i18nsupport": "i18n-stöd direkt ur lådan",
+  "i18nsupport-desc": "Leverera din produkt med olika språk inbyggt",
+  "linters": "Linta all kod vid sparande",
+  "linters-desc": "Byggd med ESLint, Prettier, Stylelint och Commitlint",
+  "hero-title": "Bygga appar med den bästa DX vi älskar",
+  "get-started": "Kom igång"
+}

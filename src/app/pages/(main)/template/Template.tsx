@@ -27,6 +27,7 @@ const TemplateManager: React.FC<{ template_id: string }> = ({ template_id }) => 
       }
       catch (error) {
         toast.error('Kunne ikke oppdatere malen')
+        console.error(error)  
       }
     }
   };

@@ -15,8 +15,8 @@ import { TanStackRouterVite } from '@tanstack/router-plugin/vite'
 const pwaOptions: Partial<VitePWAOptions> = {
   registerType: 'autoUpdate',
   manifest: {
-    short_name: 'vite-react-tailwind-starter',
-    name: 'Vite React App Template',
+    short_name: 'precepto',
+    name: 'The future is here',
     lang: 'en',
     start_url: '/',
     background_color: '#FFFFFF',

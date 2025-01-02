@@ -1,5 +1,4 @@
 // src/components/TemplateManager.tsx
-import type React from 'react';
 import { useEffect, useState } from 'react';
 // import { useTemplates } from '../hooks/useTemplates';
 // import { TranscriptTemplate } from '../types';
@@ -52,6 +51,7 @@ const TemplateManager: React.FC<{ template_id: string }> = ({ template_id }) => 
       }
       catch (error) {
         toast.error('Kunne ikke oppdatere malen')
+        console.error(error)
       }
 
       // setSelectedTemplate(null);

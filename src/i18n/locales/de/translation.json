@@ -1,0 +1,12 @@
+{
+  "title": "Vite React Tailwind Starter",
+  "features": "Funktionen",
+  "modernstack": "Moderne und effiziente Technologie",
+  "modernstack-desc": "Hergestellt mit Vite, React, Tailwind CSS, Shadcnui und mehr",
+  "i18nsupport": "i18n-Unterstützung sofort verfügbar",
+  "i18nsupport-desc": "Versenden Sie Ihr Produkt mit verschiedenen Sprachen nativ",
+  "linters": "Linten Sie gesamten Code beim Speichern",
+  "linters-desc": "Hergestellt mit ESLint, Prettier, Stylelint und Commitlint",
+  "hero-title": "Apps mit der besten DX, die wir lieben, erstellen",
+  "get-started": "Loslegen"
+}
